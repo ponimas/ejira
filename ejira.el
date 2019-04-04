@@ -44,7 +44,6 @@
 (require 'cl-lib)
 (require 's)
 
-
 
 (defgroup ejira nil
   "JIRA synchronization for Emacs."
@@ -605,61 +604,64 @@ If TITLE is given, use it as header title."
 (defun ejira-update-epic (epic-id  buffer)
   "Update an epic with id EPIC-ID. Create org-tree if necessary.
 Epic will be created in BUFFER, regardless of the project."
-  (let ((epic (ejira-parse-issue (jiralib2-get-issue epic-id))))
+  (if (string-match-p (regexp-quote ejira-no-epic-postfix) epic-id)
+      (message "Tried to update a non-existing epic.")
 
-    (with-current-buffer buffer
-      (org-with-wide-buffer
-       (let ((epic-subtree
-              (or (org-id-find-id-in-file epic-id (buffer-file-name) 'marker)
-                  (prog1
-                      (ejira-new-header-with-id epic-id)
+    (let ((epic (ejira-parse-issue (jiralib2-get-issue epic-id))))
+
+      (with-current-buffer buffer
+        (org-with-wide-buffer
+         (let ((epic-subtree
+                (or (org-id-find-id-in-file epic-id (buffer-file-name) 'marker)
+                    (prog1
+                        (ejira-new-header-with-id epic-id)
                       (when (fboundp 'helm-ejira-invalidate-cache)
                         (helm-ejira-invalidate-cache))))))
 
-         (save-mark-and-excursion
-           (goto-char epic-subtree)
-           (save-restriction
-             (org-narrow-to-subtree)
-             (org-save-outline-visibility t
-               (org-show-subtree)
+           (save-mark-and-excursion
+             (goto-char epic-subtree)
+             (save-restriction
+               (org-narrow-to-subtree)
+               (org-save-outline-visibility t
+                 (org-show-subtree)
 
-               ;; Set the todo-status of the issue based on JIRA status.
-               (cond ((member (jira-epic-status epic) ejira-done-states)
-                      (org-todo 3))
-                     ((member (jira-epic-status epic) ejira-in-progress-states)
-                      (org-todo 2))
-                     (t
-                      (org-todo 1)))
+                 ;; Set the todo-status of the issue based on JIRA status.
+                 (cond ((member (jira-epic-status epic) ejira-done-states)
+                        (org-todo 3))
+                       ((member (jira-epic-status epic) ejira-in-progress-states)
+                        (org-todo 2))
+                       (t
+                        (org-todo 1)))
 
-               ;; Update heading text.
-               (save-excursion
-                 (ejira-update-header-text (jira-epic-summary epic)))
+                 ;; Update heading text.
+                 (save-excursion
+                   (ejira-update-header-text (jira-epic-summary epic)))
 
-               ;; Update deadline
-               (when (jira-epic-deadline epic)
-                 (org-deadline nil (jira-epic-deadline epic)))
+                 ;; Update deadline
+                 (when (jira-epic-deadline epic)
+                   (org-deadline nil (jira-epic-deadline epic)))
 
-               ;; Set properties.
-               (org-set-property "Reporter" (jira-epic-reporter epic))
-               (org-set-property "Modified" (format-time-string
-                                             "%Y-%m-%d %H:%M:%S"
-                                             (jira-epic-updated epic)
-                                             "UTC"))
+                 ;; Set properties.
+                 (org-set-property "Reporter" (jira-epic-reporter epic))
+                 (org-set-property "Modified" (format-time-string
+                                               "%Y-%m-%d %H:%M:%S"
+                                               (jira-epic-updated epic)
+                                               "UTC"))
 
-               ;; Set priority.
-               (cond ((member (jira-epic-priority epic) ejira-high-priorities)
-                      (org-priority ?A))
-                     ((member (jira-epic-priority epic) ejira-low-priorities)
-                      (org-priority ?C))
-                     (t (org-priority ?B)))
+                 ;; Set priority.
+                 (cond ((member (jira-epic-priority epic) ejira-high-priorities)
+                        (org-priority ?A))
+                       ((member (jira-epic-priority epic) ejira-low-priorities)
+                        (org-priority ?C))
+                       (t (org-priority ?B)))
 
-               (let ((description-subtree (ejira-add-child-if-not-exist "Description"))
-                     (comments-subtree (ejira-add-child-if-not-exist "Comments"))
-                     (attachments-subtree (ejira-add-child-if-not-exist "Attachments")))
-                 (ejira--update-body description-subtree
-                                     (jira-epic-description epic))
-                 (ejira--update-comments comments-subtree
-                                         (jira-epic-comments epic)))))))))))
+                 (let ((description-subtree (ejira-add-child-if-not-exist "Description"))
+                       (comments-subtree (ejira-add-child-if-not-exist "Comments"))
+                       (attachments-subtree (ejira-add-child-if-not-exist "Attachments")))
+                   (ejira--update-body description-subtree
+                                       (jira-epic-description epic))
+                   (ejira--update-comments comments-subtree
+                                           (jira-epic-comments epic))))))))))))
 
 
 (defun ejira--update-comments (tree comments)
